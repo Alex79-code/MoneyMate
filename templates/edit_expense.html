@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Edit Expense - MoneyMate</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f6f8;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 500px;
+            margin: 50px auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 15px;
+        }
+
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 20px;
+            padding: 12px;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background-color: #c0392b;
+        }
+
+        .back {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            text-decoration: none;
+            color: #2980b9;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>Edit Expense</h1>
+
+        <form method="POST">
+
+            <!-- CATEGORY -->
+
+            <label for="category">
+                Category
+            </label>
+
+            <select
+                id="category"
+                name="category"
+                required
+            >
+
+                <option value="">
+                    Select Category
+                </option>
+
+                <option
+                    value="Food"
+                    {% if expense[0] == "Food" %}selected{% endif %}
+                >
+                    Food
+                </option>
+
+                <option
+                    value="Shopping"
+                    {% if expense[0] == "Shopping" %}selected{% endif %}
+                >
+                    Shopping
+                </option>
+
+                <option
+                    value="Transport"
+                    {% if expense[0] == "Transport" %}selected{% endif %}
+                >
+                    Transport
+                </option>
+
+                <option
+                    value="Bills"
+                    {% if expense[0] == "Bills" %}selected{% endif %}
+                >
+                    Bills
+                </option>
+
+                <option
+                    value="Education"
+                    {% if expense[0] == "Education" %}selected{% endif %}
+                >
+                    Education
+                </option>
+
+                <option
+                    value="Entertainment"
+                    {% if expense[0] == "Entertainment" %}selected{% endif %}
+                >
+                    Entertainment
+                </option>
+
+                <option
+                    value="Health"
+                    {% if expense[0] == "Health" %}selected{% endif %}
+                >
+                    Health
+                </option>
+
+                <option
+                    value="Travel"
+                    {% if expense[0] == "Travel" %}selected{% endif %}
+                >
+                    Travel
+                </option>
+
+                <option
+                    value="Other"
+                    {% if expense[0] == "Other" %}selected{% endif %}
+                >
+                    Other
+                </option>
+
+            </select>
+
+
+            <!-- AMOUNT -->
+
+            <label for="amount">
+                Amount
+            </label>
+
+            <input
+                type="number"
+                id="amount"
+                name="amount"
+                step="0.01"
+                min="0.01"
+                value="{{ expense[1] }}"
+                required
+            >
+
+
+            <!-- DATE -->
+
+            <label for="expense_date">
+                Date
+            </label>
+
+            <input
+                type="date"
+                id="expense_date"
+                name="expense_date"
+                value="{{ expense[2] }}"
+                required
+            >
+
+
+            <!-- DESCRIPTION -->
+
+            <label for="description">
+                Description
+            </label>
+
+            <textarea
+                id="description"
+                name="description"
+                placeholder="Enter description..."
+            >{{ expense[3] or '' }}</textarea>
+
+
+            <!-- UPDATE BUTTON -->
+
+            <button type="submit">
+                Update Expense
+            </button>
+
+        </form>
+
+
+        <!-- BACK BUTTON -->
+
+        <a
+            href="{{ url_for('dashboard') }}"
+            class="back"
+        >
+            ← Back to Dashboard
+        </a>
+
+    </div>
+
+</body>
+
+</html>
