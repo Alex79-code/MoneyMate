@@ -4,6 +4,8 @@ MoneyMate is a web-based Personal Finance Manager built using Python Flask and M
 
 It helps users manage their income and expenses, track monthly spending, set budgets, and visualize expense categories through an interactive dashboard.
 
+---
+
 ## 🚀 Features
 
 - 🔐 User registration and login
@@ -20,28 +22,52 @@ It helps users manage their income and expenses, track monthly spending, set bud
 - 🗄️ MySQL database integration
 - 📱 Responsive dashboard
 
+---
+
+## 🖥️ Application Screenshots
+
+### 📊 Dashboard
+
+![MoneyMate Dashboard](dashboard.png)
+
+### 💵 Add Income
+
+![Add Income](income.png)
+
+### 💸 Add Expense
+
+![Add Expense](expense.png)
+
+---
+
 ## 🛠️ Technologies Used
 
 ### Backend
+
 - Python
 - Flask
 - Werkzeug
 - MySQL Connector/Python
 
 ### Frontend
+
 - HTML
 - CSS
 - JavaScript
 - Chart.js
 
 ### Database
+
 - MySQL 8.0
 
 ### Tools
+
 - Visual Studio Code
 - Git
 - GitHub
 - Python Virtual Environment
+
+---
 
 ## 📂 Project Structure
 
@@ -53,6 +79,9 @@ MoneyMate/
 ├── test_db.py
 ├── .gitignore
 ├── README.md
+├── dashboard.png
+├── income.png
+├── expense.png
 │
 ├── templates/
 │   ├── dashboard.html
