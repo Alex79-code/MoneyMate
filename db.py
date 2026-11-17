@@ -11,7 +11,7 @@ def get_db_connection():
         )
 
     connection = mysql.connector.connect(
-        host="localhost",
+        host="host.docker.internal",
         user="root",
         password=mysql_password,
         database="moneymate",

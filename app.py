@@ -1,12 +1,215 @@
-from flask import Flask, render_template, request, redirect, url_for, session
-from werkzeug.security import generate_password_hash, check_password_hash
-from db import get_db_connection
+import os
 from datetime import datetime
 
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    session,
+    jsonify
+)
+
+from werkzeug.security import (
+    generate_password_hash,
+    check_password_hash
+)
+
+from db import get_db_connection
+
+
+# =========================================================
+# APPLICATION
+# =========================================================
 
 app = Flask(__name__)
 
-app.secret_key = "moneymate-secret-key"
+
+# =========================================================
+# APPLICATION SECURITY
+# =========================================================
+
+secret_key = os.getenv("MONEYMATE_SECRET_KEY")
+
+if not secret_key:
+    raise RuntimeError(
+        "MONEYMATE_SECRET_KEY environment variable is not set."
+    )
+
+app.secret_key = secret_key
+
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = False
+
+
+# =========================================================
+# HELPER FUNCTIONS
+# =========================================================
+
+def is_logged_in():
+    return "user_id" in session
+
+
+def get_current_user_id():
+    return session.get("user_id")
+
+
+def login_required():
+    if not is_logged_in():
+        return redirect(url_for("login"))
+    return None
+
+
+# =========================================================
+# ERROR HANDLERS
+# =========================================================
+
+@app.errorhandler(404)
+def page_not_found(error):
+
+    try:
+        return render_template("404.html"), 404
+
+    except Exception:
+
+        app.logger.exception(
+            "Could not load custom 404 page"
+        )
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Page Not Found - Cloud Expense Manager</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    background: #f4f7fb;
+                    text-align: center;
+                    padding-top: 100px;
+                }
+
+                .container {
+                    background: white;
+                    width: 90%;
+                    max-width: 500px;
+                    margin: auto;
+                    padding: 40px;
+                    border-radius: 15px;
+                }
+
+                h1 {
+                    font-size: 70px;
+                    color: #2563eb;
+                }
+
+                a {
+                    display: inline-block;
+                    background: #2563eb;
+                    color: white;
+                    padding: 12px 25px;
+                    text-decoration: none;
+                    border-radius: 8px;
+                }
+            </style>
+        </head>
+
+        <body>
+
+            <div class="container">
+
+                <h1>404</h1>
+
+                <h2>Page Not Found</h2>
+
+                <p>
+                    The page you are looking for does not exist.
+                </p>
+
+                <a href="/dashboard">
+                    Go to Dashboard
+                </a>
+
+            </div>
+
+        </body>
+        </html>
+        """, 404
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+
+    try:
+        return render_template("500.html"), 500
+
+    except Exception:
+
+        app.logger.exception(
+            "Could not load custom 500 page"
+        )
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Server Error - Cloud Expense Manager</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    background: #f4f7fb;
+                    text-align: center;
+                    padding-top: 100px;
+                }
+
+                .container {
+                    background: white;
+                    width: 90%;
+                    max-width: 500px;
+                    margin: auto;
+                    padding: 40px;
+                    border-radius: 15px;
+                }
+
+                h1 {
+                    font-size: 70px;
+                    color: #dc2626;
+                }
+
+                a {
+                    display: inline-block;
+                    background: #2563eb;
+                    color: white;
+                    padding: 12px 25px;
+                    text-decoration: none;
+                    border-radius: 8px;
+                }
+            </style>
+        </head>
+
+        <body>
+
+            <div class="container">
+
+                <h1>500</h1>
+
+                <h2>Something Went Wrong</h2>
+
+                <p>
+                    Please try again.
+                </p>
+
+                <a href="/dashboard">
+                    Go to Dashboard
+                </a>
+
+            </div>
+
+        </body>
+        </html>
+        """, 500
 
 
 # =========================================================
@@ -17,9 +220,11 @@ app.secret_key = "moneymate-secret-key"
 def home():
 
     return """
-    <h1>Welcome to MoneyMate!</h1>
+    <h1>Welcome to Cloud Expense Manager!</h1>
 
-    <p>Your personal finance manager.</p>
+    <p>
+        Manage your income, expenses and monthly budget.
+    </p>
 
     <a href="/about">About</a> |
     <a href="/dashboard">Dashboard</a> |
@@ -39,10 +244,15 @@ def home():
 def about():
 
     return """
-    <h1>About MoneyMate</h1>
+    <h1>About Cloud Expense Manager</h1>
 
     <p>
-        MoneyMate helps you manage your income and expenses.
+        Cloud Expense Manager is a personal finance application
+        built using Python Flask and MySQL.
+    </p>
+
+    <p>
+        Users can manage income, expenses and monthly budgets.
     </p>
 
     <a href="/">Home</a> |
@@ -59,30 +269,38 @@ def register():
 
     if request.method == "POST":
 
-        name = request.form.get("name", "").strip()
-        email = request.form.get("email", "").strip()
-        password = request.form.get("password", "")
+        name = request.form.get(
+            "name",
+            ""
+        ).strip()
+
+        email = request.form.get(
+            "email",
+            ""
+        ).strip()
+
+        password = request.form.get(
+            "password",
+            ""
+        )
 
         if not name:
-
             return """
-            <h1>MoneyMate</h1>
+            <h1>Cloud Expense Manager</h1>
             <p>Please enter your name.</p>
             <a href="/register">Try Again</a>
             """, 400
 
         if not email:
-
             return """
-            <h1>MoneyMate</h1>
+            <h1>Cloud Expense Manager</h1>
             <p>Please enter your email.</p>
             <a href="/register">Try Again</a>
             """, 400
 
         if not password:
-
             return """
-            <h1>MoneyMate</h1>
+            <h1>Cloud Expense Manager</h1>
             <p>Please enter your password.</p>
             <a href="/register">Try Again</a>
             """, 400
@@ -109,7 +327,7 @@ def register():
             if existing_user:
 
                 return """
-                <h1>MoneyMate</h1>
+                <h1>Cloud Expense Manager</h1>
 
                 <p>
                     Email already registered.
@@ -118,7 +336,7 @@ def register():
                 <a href="/register">
                     Try Again
                 </a>
-                """
+                """, 400
 
             password_hash = generate_password_hash(password)
 
@@ -145,7 +363,7 @@ def register():
             <h1>Registration Successful!</h1>
 
             <p>
-                Your MoneyMate account has been created.
+                Your account has been created.
             </p>
 
             <a href="/login">
@@ -160,7 +378,7 @@ def register():
             )
 
             return """
-            <h1>MoneyMate</h1>
+            <h1>Cloud Expense Manager</h1>
 
             <p>
                 Unable to create account.
@@ -191,13 +409,20 @@ def login():
 
     if request.method == "POST":
 
-        email = request.form.get("email", "").strip()
-        password = request.form.get("password", "")
+        email = request.form.get(
+            "email",
+            ""
+        ).strip()
+
+        password = request.form.get(
+            "password",
+            ""
+        )
 
         if not email or not password:
 
             return """
-            <h1>MoneyMate</h1>
+            <h1>Cloud Expense Manager</h1>
 
             <p>
                 Please enter email and password.
@@ -234,7 +459,7 @@ def login():
             if user is None:
 
                 return """
-                <h1>MoneyMate</h1>
+                <h1>Cloud Expense Manager</h1>
 
                 <p>
                     Invalid email or password.
@@ -243,7 +468,7 @@ def login():
                 <a href="/login">
                     Try Again
                 </a>
-                """
+                """, 401
 
             stored_password_hash = user[3]
 
@@ -253,7 +478,7 @@ def login():
             ):
 
                 return """
-                <h1>MoneyMate</h1>
+                <h1>Cloud Expense Manager</h1>
 
                 <p>
                     Invalid email or password.
@@ -262,7 +487,9 @@ def login():
                 <a href="/login">
                     Try Again
                 </a>
-                """
+                """, 401
+
+            session.clear()
 
             session["user_id"] = user[0]
             session["user_name"] = user[1]
@@ -279,7 +506,7 @@ def login():
             )
 
             return """
-            <h1>MoneyMate</h1>
+            <h1>Cloud Expense Manager</h1>
 
             <p>
                 Unable to login.
@@ -358,9 +585,9 @@ def dashboard():
         connection = get_db_connection()
         cursor = connection.cursor()
 
-        # =================================================
+        # -------------------------------------------------
         # TOTAL INCOME
-        # =================================================
+        # -------------------------------------------------
 
         cursor.execute(
             """
@@ -373,9 +600,9 @@ def dashboard():
 
         total_income = cursor.fetchone()[0]
 
-        # =================================================
-        # TOTAL EXPENSES
-        # =================================================
+        # -------------------------------------------------
+        # TOTAL EXPENSE
+        # -------------------------------------------------
 
         cursor.execute(
             """
@@ -388,15 +615,15 @@ def dashboard():
 
         total_expenses = cursor.fetchone()[0]
 
-        # =================================================
+        # -------------------------------------------------
         # BALANCE
-        # =================================================
+        # -------------------------------------------------
 
         balance = total_income - total_expenses
 
-        # =================================================
-        # EXPENSE ANALYTICS
-        # =================================================
+        # -------------------------------------------------
+        # EXPENSE BY CATEGORY
+        # -------------------------------------------------
 
         cursor.execute(
             """
@@ -413,9 +640,9 @@ def dashboard():
 
         expense_by_category = cursor.fetchall()
 
-        # =================================================
-        # BUDGET INFORMATION
-        # =================================================
+        # -------------------------------------------------
+        # BUDGETS
+        # -------------------------------------------------
 
         cursor.execute(
             """
@@ -434,16 +661,11 @@ def dashboard():
 
         budgets = []
 
-        for budget_row in budget_rows:
+        for row in budget_rows:
 
-            budget_id = budget_row[0]
-            month_year = budget_row[1]
-            budget_amount = float(budget_row[2])
-
-            # -------------------------------------------------
-            # Calculate exact start and end dates
-            # for the selected budget month
-            # -------------------------------------------------
+            budget_id = row[0]
+            month_year = row[1]
+            budget_amount = float(row[2])
 
             try:
 
@@ -473,10 +695,6 @@ def dashboard():
                 budget_start_date = None
                 budget_end_date = None
 
-            # -------------------------------------------------
-            # Calculate expenses for this exact budget month
-            # -------------------------------------------------
-
             if (
                 budget_start_date is not None
                 and budget_end_date is not None
@@ -484,8 +702,7 @@ def dashboard():
 
                 cursor.execute(
                     """
-                    SELECT
-                        COALESCE(SUM(amount), 0)
+                    SELECT COALESCE(SUM(amount), 0)
                     FROM expenses
                     WHERE user_id = %s
                     AND expense_date >= %s
@@ -509,69 +726,43 @@ def dashboard():
 
             spent = float(spent)
 
-            # -------------------------------------------------
-            # Calculate remaining amount
-            # -------------------------------------------------
-
             remaining = budget_amount - spent
 
-            # -------------------------------------------------
-            # Calculate percentage used
-            # -------------------------------------------------
-
             if budget_amount > 0:
-
                 percentage = (
                     spent / budget_amount
                 ) * 100
-
             else:
-
                 percentage = 0
-
-            # -------------------------------------------------
-            # Budget warning system
-            # -------------------------------------------------
 
             if percentage >= 100:
 
-                budget_status = "Over Budget"
-
-                budget_status_message = (
-                    "🚨 You have exceeded your monthly budget!"
+                status = "Over Budget"
+                status_message = (
+                    "You have exceeded your monthly budget."
                 )
-
-                budget_status_class = "danger"
+                status_class = "danger"
 
             elif percentage >= 80:
 
-                budget_status = "Approaching Limit"
-
-                budget_status_message = (
-                    "⚠️ You are approaching your monthly budget limit."
+                status = "Approaching Limit"
+                status_message = (
+                    "You are approaching your monthly budget limit."
                 )
-
-                budget_status_class = "warning"
+                status_class = "warning"
 
             else:
 
-                budget_status = "Budget Healthy"
-
-                budget_status_message = (
-                    "✅ Your spending is within a healthy range."
+                status = "Budget Healthy"
+                status_message = (
+                    "Your spending is within a healthy range."
                 )
+                status_class = "success"
 
-                budget_status_class = "success"
-
-            # -------------------------------------------------
-            # Progress bar maximum = 100%
-            # -------------------------------------------------
-
-            progress_percentage = percentage
-
-            if progress_percentage > 100:
-
-                progress_percentage = 100
+            progress_percentage = min(
+                percentage,
+                100
+            )
 
             budgets.append(
                 {
@@ -582,15 +773,15 @@ def dashboard():
                     "remaining": remaining,
                     "percentage": percentage,
                     "progress_percentage": progress_percentage,
-                    "status": budget_status,
-                    "status_message": budget_status_message,
-                    "status_class": budget_status_class
+                    "status": status,
+                    "status_message": status_message,
+                    "status_class": status_class
                 }
             )
 
-        # =================================================
+        # -------------------------------------------------
         # INCOME QUERY
-        # =================================================
+        # -------------------------------------------------
 
         income_query = """
             SELECT
@@ -603,9 +794,9 @@ def dashboard():
             WHERE user_id = %s
         """
 
-        # =================================================
+        # -------------------------------------------------
         # EXPENSE QUERY
-        # =================================================
+        # -------------------------------------------------
 
         expense_query = """
             SELECT
@@ -621,9 +812,9 @@ def dashboard():
         income_params = [user_id]
         expense_params = [user_id]
 
-        # =================================================
-        # SEARCH FILTER
-        # =================================================
+        # -------------------------------------------------
+        # SEARCH
+        # -------------------------------------------------
 
         if search:
 
@@ -643,19 +834,23 @@ def dashboard():
 
             search_value = "%" + search + "%"
 
-            income_params.extend([
-                search_value,
-                search_value
-            ])
+            income_params.extend(
+                [
+                    search_value,
+                    search_value
+                ]
+            )
 
-            expense_params.extend([
-                search_value,
-                search_value
-            ])
+            expense_params.extend(
+                [
+                    search_value,
+                    search_value
+                ]
+            )
 
-        # =================================================
+        # -------------------------------------------------
         # FROM DATE
-        # =================================================
+        # -------------------------------------------------
 
         if from_date:
 
@@ -667,12 +862,17 @@ def dashboard():
                 AND expense_date >= %s
             """
 
-            income_params.append(from_date)
-            expense_params.append(from_date)
+            income_params.append(
+                from_date
+            )
 
-        # =================================================
+            expense_params.append(
+                from_date
+            )
+
+        # -------------------------------------------------
         # TO DATE
-        # =================================================
+        # -------------------------------------------------
 
         if to_date:
 
@@ -684,26 +884,37 @@ def dashboard():
                 AND expense_date <= %s
             """
 
-            income_params.append(to_date)
-            expense_params.append(to_date)
+            income_params.append(
+                to_date
+            )
 
-        # =================================================
+            expense_params.append(
+                to_date
+            )
+
+        # -------------------------------------------------
         # TRANSACTION TYPE
-        # =================================================
+        # -------------------------------------------------
 
         if transaction_type == "Income":
 
-            final_query = income_query + """
+            final_query = (
+                income_query +
+                """
                 ORDER BY transaction_date DESC
-            """
+                """
+            )
 
             final_params = income_params
 
         elif transaction_type == "Expense":
 
-            final_query = expense_query + """
+            final_query = (
+                expense_query +
+                """
                 ORDER BY transaction_date DESC
-            """
+                """
+            )
 
             final_params = expense_params
 
@@ -731,42 +942,12 @@ def dashboard():
                 expense_params
             )
 
-        # =================================================
-        # GET TRANSACTIONS
-        # =================================================
-
         cursor.execute(
             final_query,
             tuple(final_params)
         )
 
         transactions = cursor.fetchall()
-
-        # =================================================
-        # DEBUG INFORMATION
-        # =================================================
-
-        print()
-        print("========================================")
-        print("MONEYMATE DASHBOARD")
-        print("========================================")
-        print("Logged-in User ID:", user_id)
-        print("Total Income:", total_income)
-        print("Total Expenses:", total_expenses)
-        print("Balance:", balance)
-        print("Expense By Category:", expense_by_category)
-        print("Budgets:", budgets)
-        print("Search:", search)
-        print("Transaction Type:", transaction_type)
-        print("From Date:", from_date)
-        print("To Date:", to_date)
-        print("Filtered Transactions:", transactions)
-        print("========================================")
-        print()
-
-        # =================================================
-        # SEND DATA TO HTML
-        # =================================================
 
         return render_template(
             "dashboard.html",
@@ -793,7 +974,7 @@ def dashboard():
         )
 
         return """
-        <h1>MoneyMate</h1>
+        <h1>Cloud Expense Manager</h1>
 
         <p>
             Unable to load dashboard data.
@@ -852,77 +1033,40 @@ def add_income():
         ).strip()
 
         if not source:
-
             return """
-            <h1>MoneyMate</h1>
-
-            <p>
-                Please enter an income source.
-            </p>
-
-            <a href="/add-income">
-                Try Again
-            </a>
+            <h1>Cloud Expense Manager</h1>
+            <p>Please enter an income source.</p>
+            <a href="/add-income">Try Again</a>
             """, 400
 
         if not amount:
-
             return """
-            <h1>MoneyMate</h1>
-
-            <p>
-                Please enter an income amount.
-            </p>
-
-            <a href="/add-income">
-                Try Again
-            </a>
+            <h1>Cloud Expense Manager</h1>
+            <p>Please enter an income amount.</p>
+            <a href="/add-income">Try Again</a>
             """, 400
 
         try:
-
             amount_value = float(amount)
-
         except ValueError:
-
             return """
-            <h1>MoneyMate</h1>
-
-            <p>
-                Amount must be a valid number.
-            </p>
-
-            <a href="/add-income">
-                Try Again
-            </a>
+            <h1>Cloud Expense Manager</h1>
+            <p>Amount must be a valid number.</p>
+            <a href="/add-income">Try Again</a>
             """, 400
 
         if amount_value <= 0:
-
             return """
-            <h1>MoneyMate</h1>
-
-            <p>
-                Income amount must be greater than zero.
-            </p>
-
-            <a href="/add-income">
-                Try Again
-            </a>
+            <h1>Cloud Expense Manager</h1>
+            <p>Income amount must be greater than zero.</p>
+            <a href="/add-income">Try Again</a>
             """, 400
 
         if not income_date:
-
             return """
-            <h1>MoneyMate</h1>
-
-            <p>
-                Please select an income date.
-            </p>
-
-            <a href="/add-income">
-                Try Again
-            </a>
+            <h1>Cloud Expense Manager</h1>
+            <p>Please select an income date.</p>
+            <a href="/add-income">Try Again</a>
             """, 400
 
         user_id = session["user_id"]
@@ -969,7 +1113,7 @@ def add_income():
             )
 
             return """
-            <h1>MoneyMate</h1>
+            <h1>Cloud Expense Manager</h1>
 
             <p>
                 Unable to save income.
@@ -1042,91 +1186,44 @@ def edit_income(income_id):
             ).strip()
 
             if not source:
-
                 return """
-                <h1>MoneyMate</h1>
-
-                <p>
-                    Please enter an income source.
-                </p>
-
-                <a href="/edit-income/%s">
-                    Try Again
-                </a>
-                """ % income_id, 400
-
-            if not amount:
-
-                return """
-                <h1>MoneyMate</h1>
-
-                <p>
-                    Please enter an income amount.
-                </p>
-
-                <a href="/edit-income/%s">
-                    Try Again
-                </a>
+                <h1>Cloud Expense Manager</h1>
+                <p>Please enter an income source.</p>
+                <a href="/edit-income/%s">Try Again</a>
                 """ % income_id, 400
 
             try:
-
                 amount_value = float(amount)
-
             except ValueError:
-
                 return """
-                <h1>MoneyMate</h1>
-
-                <p>
-                    Amount must be a valid number.
-                </p>
-
-                <a href="/edit-income/%s">
-                    Try Again
-                </a>
+                <h1>Cloud Expense Manager</h1>
+                <p>Amount must be a valid number.</p>
+                <a href="/edit-income/%s">Try Again</a>
                 """ % income_id, 400
 
             if amount_value <= 0:
-
                 return """
-                <h1>MoneyMate</h1>
-
-                <p>
-                    Income amount must be greater than zero.
-                </p>
-
-                <a href="/edit-income/%s">
-                    Try Again
-                </a>
+                <h1>Cloud Expense Manager</h1>
+                <p>Income amount must be greater than zero.</p>
+                <a href="/edit-income/%s">Try Again</a>
                 """ % income_id, 400
 
             if not income_date:
-
                 return """
-                <h1>MoneyMate</h1>
-
-                <p>
-                    Please select an income date.
-                </p>
-
-                <a href="/edit-income/%s">
-                    Try Again
-                </a>
+                <h1>Cloud Expense Manager</h1>
+                <p>Please select an income date.</p>
+                <a href="/edit-income/%s">Try Again</a>
                 """ % income_id, 400
 
             cursor.execute(
                 """
                 UPDATE income
-
                 SET
                     source = %s,
                     amount = %s,
                     income_date = %s,
                     description = %s
-
                 WHERE id = %s
-
                 AND user_id = %s
                 """,
                 (
@@ -1152,11 +1249,8 @@ def edit_income(income_id):
                 amount,
                 income_date,
                 description
-
             FROM income
-
             WHERE id = %s
-
             AND user_id = %s
             """,
             (
@@ -1170,7 +1264,7 @@ def edit_income(income_id):
         if income is None:
 
             return """
-            <h1>MoneyMate</h1>
+            <h1>Cloud Expense Manager</h1>
 
             <p>
                 Income record not found.
@@ -1193,7 +1287,7 @@ def edit_income(income_id):
         )
 
         return """
-        <h1>MoneyMate</h1>
+        <h1>Cloud Expense Manager</h1>
 
         <p>
             Unable to edit income.
@@ -1252,77 +1346,40 @@ def add_expense():
         ).strip()
 
         if not category:
-
             return """
-            <h1>MoneyMate</h1>
-
-            <p>
-                Please select an expense category.
-            </p>
-
-            <a href="/add-expense">
-                Try Again
-            </a>
+            <h1>Cloud Expense Manager</h1>
+            <p>Please select an expense category.</p>
+            <a href="/add-expense">Try Again</a>
             """, 400
 
         if not amount:
-
             return """
-            <h1>MoneyMate</h1>
-
-            <p>
-                Please enter an expense amount.
-            </p>
-
-            <a href="/add-expense">
-                Try Again
-            </a>
+            <h1>Cloud Expense Manager</h1>
+            <p>Please enter an expense amount.</p>
+            <a href="/add-expense">Try Again</a>
             """, 400
 
         try:
-
             amount_value = float(amount)
-
         except ValueError:
-
             return """
-            <h1>MoneyMate</h1>
-
-            <p>
-                Amount must be a valid number.
-            </p>
-
-            <a href="/add-expense">
-                Try Again
-            </a>
+            <h1>Cloud Expense Manager</h1>
+            <p>Amount must be a valid number.</p>
+            <a href="/add-expense">Try Again</a>
             """, 400
 
         if amount_value <= 0:
-
             return """
-            <h1>MoneyMate</h1>
-
-            <p>
-                Expense amount must be greater than zero.
-            </p>
-
-            <a href="/add-expense">
-                Try Again
-            </a>
+            <h1>Cloud Expense Manager</h1>
+            <p>Expense amount must be greater than zero.</p>
+            <a href="/add-expense">Try Again</a>
             """, 400
 
         if not expense_date:
-
             return """
-            <h1>MoneyMate</h1>
-
-            <p>
-                Please select an expense date.
-            </p>
-
-            <a href="/add-expense">
-                Try Again
-            </a>
+            <h1>Cloud Expense Manager</h1>
+            <p>Please select an expense date.</p>
+            <a href="/add-expense">Try Again</a>
             """, 400
 
         user_id = session["user_id"]
@@ -1369,7 +1426,7 @@ def add_expense():
             )
 
             return """
-            <h1>MoneyMate</h1>
+            <h1>Cloud Expense Manager</h1>
 
             <p>
                 Unable to save expense.
@@ -1442,91 +1499,44 @@ def edit_expense(expense_id):
             ).strip()
 
             if not category:
-
                 return """
-                <h1>MoneyMate</h1>
-
-                <p>
-                    Please select an expense category.
-                </p>
-
-                <a href="/edit-expense/%s">
-                    Try Again
-                </a>
-                """ % expense_id, 400
-
-            if not amount:
-
-                return """
-                <h1>MoneyMate</h1>
-
-                <p>
-                    Please enter an expense amount.
-                </p>
-
-                <a href="/edit-expense/%s">
-                    Try Again
-                </a>
+                <h1>Cloud Expense Manager</h1>
+                <p>Please select an expense category.</p>
+                <a href="/edit-expense/%s">Try Again</a>
                 """ % expense_id, 400
 
             try:
-
                 amount_value = float(amount)
-
             except ValueError:
-
                 return """
-                <h1>MoneyMate</h1>
-
-                <p>
-                    Amount must be a valid number.
-                </p>
-
-                <a href="/edit-expense/%s">
-                    Try Again
-                </a>
+                <h1>Cloud Expense Manager</h1>
+                <p>Amount must be a valid number.</p>
+                <a href="/edit-expense/%s">Try Again</a>
                 """ % expense_id, 400
 
             if amount_value <= 0:
-
                 return """
-                <h1>MoneyMate</h1>
-
-                <p>
-                    Expense amount must be greater than zero.
-                </p>
-
-                <a href="/edit-expense/%s">
-                    Try Again
-                </a>
+                <h1>Cloud Expense Manager</h1>
+                <p>Expense amount must be greater than zero.</p>
+                <a href="/edit-expense/%s">Try Again</a>
                 """ % expense_id, 400
 
             if not expense_date:
-
                 return """
-                <h1>MoneyMate</h1>
-
-                <p>
-                    Please select an expense date.
-                </p>
-
-                <a href="/edit-expense/%s">
-                    Try Again
-                </a>
+                <h1>Cloud Expense Manager</h1>
+                <p>Please select an expense date.</p>
+                <a href="/edit-expense/%s">Try Again</a>
                 """ % expense_id, 400
 
             cursor.execute(
                 """
                 UPDATE expenses
-
                 SET
                     category = %s,
                     amount = %s,
                     expense_date = %s,
                     description = %s
-
                 WHERE id = %s
-
                 AND user_id = %s
                 """,
                 (
@@ -1552,11 +1562,8 @@ def edit_expense(expense_id):
                 amount,
                 expense_date,
                 description
-
             FROM expenses
-
             WHERE id = %s
-
             AND user_id = %s
             """,
             (
@@ -1570,7 +1577,7 @@ def edit_expense(expense_id):
         if expense is None:
 
             return """
-            <h1>MoneyMate</h1>
+            <h1>Cloud Expense Manager</h1>
 
             <p>
                 Expense record not found.
@@ -1593,7 +1600,7 @@ def edit_expense(expense_id):
         )
 
         return """
-        <h1>MoneyMate</h1>
+        <h1>Cloud Expense Manager</h1>
 
         <p>
             Unable to edit expense.
@@ -1642,9 +1649,7 @@ def delete_income(income_id):
         cursor.execute(
             """
             DELETE FROM income
-
             WHERE id = %s
-
             AND user_id = %s
             """,
             (
@@ -1666,7 +1671,7 @@ def delete_income(income_id):
         )
 
         return """
-        <h1>MoneyMate</h1>
+        <h1>Cloud Expense Manager</h1>
 
         <p>
             Unable to delete income.
@@ -1715,9 +1720,7 @@ def delete_expense(expense_id):
         cursor.execute(
             """
             DELETE FROM expenses
-
             WHERE id = %s
-
             AND user_id = %s
             """,
             (
@@ -1739,7 +1742,7 @@ def delete_expense(expense_id):
         )
 
         return """
-        <h1>MoneyMate</h1>
+        <h1>Cloud Expense Manager</h1>
 
         <p>
             Unable to delete expense.
@@ -1785,10 +1788,6 @@ def budget():
         connection = get_db_connection()
         cursor = connection.cursor()
 
-        # =================================================
-        # SAVE / UPDATE BUDGET
-        # =================================================
-
         if request.method == "POST":
 
             month_year = request.form.get(
@@ -1804,7 +1803,7 @@ def budget():
             if not month_year:
 
                 return """
-                <h1>MoneyMate</h1>
+                <h1>Cloud Expense Manager</h1>
 
                 <p>
                     Please select a month.
@@ -1818,7 +1817,7 @@ def budget():
             if not budget_amount:
 
                 return """
-                <h1>MoneyMate</h1>
+                <h1>Cloud Expense Manager</h1>
 
                 <p>
                     Please enter a budget amount.
@@ -1838,7 +1837,7 @@ def budget():
             except ValueError:
 
                 return """
-                <h1>MoneyMate</h1>
+                <h1>Cloud Expense Manager</h1>
 
                 <p>
                     Budget amount must be a valid number.
@@ -1852,7 +1851,7 @@ def budget():
             if budget_value <= 0:
 
                 return """
-                <h1>MoneyMate</h1>
+                <h1>Cloud Expense Manager</h1>
 
                 <p>
                     Budget amount must be greater than zero.
@@ -1865,8 +1864,7 @@ def budget():
 
             cursor.execute(
                 """
-                SELECT
-                    id
+                SELECT id
                 FROM budgets
                 WHERE user_id = %s
                 AND month_year = %s
@@ -1884,10 +1882,7 @@ def budget():
                 cursor.execute(
                     """
                     UPDATE budgets
-
-                    SET
-                        budget_amount = %s
-
+                    SET budget_amount = %s
                     WHERE user_id = %s
                     AND month_year = %s
                     """,
@@ -1908,12 +1903,7 @@ def budget():
                         month_year,
                         budget_amount
                     )
-                    VALUES
-                    (
-                        %s,
-                        %s,
-                        %s
-                    )
+                    VALUES (%s, %s, %s)
                     """,
                     (
                         user_id,
@@ -1927,10 +1917,6 @@ def budget():
             return redirect(
                 url_for("budget")
             )
-
-        # =================================================
-        # GET USER BUDGETS
-        # =================================================
 
         cursor.execute(
             """
@@ -1959,7 +1945,7 @@ def budget():
         )
 
         return """
-        <h1>MoneyMate</h1>
+        <h1>Cloud Expense Manager</h1>
 
         <p>
             Unable to manage budget.
@@ -1980,10 +1966,345 @@ def budget():
 
 
 # =========================================================
+# CLOUD API - HEALTH CHECK
+# =========================================================
+
+@app.route(
+    "/api/health",
+    methods=["GET"]
+)
+def health_check():
+
+    return jsonify(
+        {
+            "status": "success",
+            "message": "Cloud Expense Manager API is running"
+        }
+    )
+
+
+# =========================================================
+# CLOUD API - CURRENT USER
+# =========================================================
+
+@app.route(
+    "/api/user",
+    methods=["GET"]
+)
+def api_current_user():
+
+    if "user_id" not in session:
+
+        return jsonify(
+            {
+                "status": "error",
+                "message": "User is not logged in"
+            }
+        ), 401
+
+    return jsonify(
+        {
+            "status": "success",
+            "user": {
+                "id": session["user_id"],
+                "name": session["user_name"],
+                "email": session["user_email"]
+            }
+        }
+    )
+
+
+# =========================================================
+# CLOUD API - INCOME
+# =========================================================
+
+@app.route(
+    "/api/income",
+    methods=["GET"]
+)
+def api_income():
+
+    if "user_id" not in session:
+
+        return jsonify(
+            {
+                "status": "error",
+                "message": "Login required"
+            }
+        ), 401
+
+    user_id = session["user_id"]
+
+    connection = None
+    cursor = None
+
+    try:
+
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                id,
+                source,
+                amount,
+                income_date,
+                description
+            FROM income
+            WHERE user_id = %s
+            ORDER BY income_date DESC
+            """,
+            (user_id,)
+        )
+
+        rows = cursor.fetchall()
+
+        income_list = []
+
+        for row in rows:
+
+            income_list.append(
+                {
+                    "id": row[0],
+                    "source": row[1],
+                    "amount": float(row[2]),
+                    "date": str(row[3]),
+                    "description": row[4]
+                }
+            )
+
+        return jsonify(
+            {
+                "status": "success",
+                "count": len(income_list),
+                "income": income_list
+            }
+        )
+
+    except Exception:
+
+        app.logger.exception(
+            "Could not load income API"
+        )
+
+        return jsonify(
+            {
+                "status": "error",
+                "message": "Could not load income"
+            }
+        ), 500
+
+    finally:
+
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None:
+            connection.close()
+
+
+# =========================================================
+# CLOUD API - EXPENSES
+# =========================================================
+
+@app.route(
+    "/api/expenses",
+    methods=["GET"]
+)
+def api_expenses():
+
+    if "user_id" not in session:
+
+        return jsonify(
+            {
+                "status": "error",
+                "message": "Login required"
+            }
+        ), 401
+
+    user_id = session["user_id"]
+
+    connection = None
+    cursor = None
+
+    try:
+
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT
+                id,
+                category,
+                amount,
+                expense_date,
+                description
+            FROM expenses
+            WHERE user_id = %s
+            ORDER BY expense_date DESC
+            """,
+            (user_id,)
+        )
+
+        rows = cursor.fetchall()
+
+        expense_list = []
+
+        for row in rows:
+
+            expense_list.append(
+                {
+                    "id": row[0],
+                    "category": row[1],
+                    "amount": float(row[2]),
+                    "date": str(row[3]),
+                    "description": row[4]
+                }
+            )
+
+        return jsonify(
+            {
+                "status": "success",
+                "count": len(expense_list),
+                "expenses": expense_list
+            }
+        )
+
+    except Exception:
+
+        app.logger.exception(
+            "Could not load expenses API"
+        )
+
+        return jsonify(
+            {
+                "status": "error",
+                "message": "Could not load expenses"
+            }
+        ), 500
+
+    finally:
+
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None:
+            connection.close()
+
+
+# =========================================================
+# CLOUD API - DASHBOARD SUMMARY
+# =========================================================
+
+@app.route(
+    "/api/dashboard",
+    methods=["GET"]
+)
+def api_dashboard():
+
+    if "user_id" not in session:
+
+        return jsonify(
+            {
+                "status": "error",
+                "message": "Login required"
+            }
+        ), 401
+
+    user_id = session["user_id"]
+
+    connection = None
+    cursor = None
+
+    try:
+
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # Total income
+
+        cursor.execute(
+            """
+            SELECT COALESCE(SUM(amount), 0)
+            FROM income
+            WHERE user_id = %s
+            """,
+            (user_id,)
+        )
+
+        total_income = cursor.fetchone()[0]
+
+        # Total expenses
+
+        cursor.execute(
+            """
+            SELECT COALESCE(SUM(amount), 0)
+            FROM expenses
+            WHERE user_id = %s
+            """,
+            (user_id,)
+        )
+
+        total_expenses = cursor.fetchone()[0]
+
+        balance = total_income - total_expenses
+
+        return jsonify(
+            {
+                "status": "success",
+                "dashboard": {
+                    "total_income": float(total_income),
+                    "total_expenses": float(total_expenses),
+                    "balance": float(balance)
+                }
+            }
+        )
+
+    except Exception:
+
+        app.logger.exception(
+            "Could not load dashboard API"
+        )
+
+        return jsonify(
+            {
+                "status": "error",
+                "message": "Could not load dashboard"
+            }
+        ), 500
+
+    finally:
+
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None:
+            connection.close()
+
+
+# =========================================================
+# EXPLICIT ERROR HANDLER REGISTRATION
+# =========================================================
+
+app.register_error_handler(
+    404,
+    page_not_found
+)
+
+app.register_error_handler(
+    500,
+    internal_server_error
+)
+
+
+# =========================================================
 # RUN APPLICATION
 # =========================================================
 
 if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
 
     app.run(
         debug=True

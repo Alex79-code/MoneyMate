@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Server Error - MoneyMate</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .error-container {
+            text-align: center;
+            background: white;
+            padding: 50px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .error-code {
+            font-size: 80px;
+            font-weight: bold;
+            color: #dc2626;
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            margin: 10px 0;
+            color: #1f2937;
+        }
+
+        p {
+            color: #6b7280;
+            font-size: 16px;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .home-btn {
+            display: inline-block;
+            text-decoration: none;
+            background: #2563eb;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .home-btn:hover {
+            background: #1d4ed8;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="error-container">
+
+        <div class="error-code">
+            500
+        </div>
+
+        <h1>Something Went Wrong</h1>
+
+        <p>
+            Sorry, something unexpected happened on our server.
+            Please try again.
+        </p>
+
+        <a href="{{ url_for('dashboard') }}" class="home-btn">
+            Go to Dashboard
+        </a>
+
+    </div>
+
+</body>
+</html>
